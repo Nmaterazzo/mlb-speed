@@ -317,15 +317,7 @@ function renderList() {
   filtered.forEach(p => {
     const row = document.createElement('div');
     row.className = 'prow' + (selPlayer?.player_id === p.player_id ? ' sel' : '') + (compareList.some(c => c.player_id === p.player_id) ? ' incmp' : '');
-    // Career peak stats from full trend
-  const peakEntry = fullTrend.length ? fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b) : null;
-  const peakSpd = peakEntry?.sprint_speed;
-  const peakYr  = peakEntry?.season;
-  const curSpd  = fullTrend.find(d => d.season === curSeason)?.sprint_speed || p.sprint_speed;
-  const peakDrop = (peakSpd && curSpd) ? (curSpd - peakSpd).toFixed(1) : null;
-  const peakDropSign = peakDrop ? (parseFloat(peakDrop) >= 0 ? '+' : '') : '';
-  const peakDropColor = peakDrop ? (parseFloat(peakDrop) >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
-  const sc = spClass(p.sprint_speed);
+    const sc = spClass(p.sprint_speed);
     const bp = Math.max(0, Math.min(100, ((p.sprint_speed - lgMin) / (lgMax - lgMin) * 100))).toFixed(1);
     const inC = compareList.some(c => c.player_id === p.player_id);
     row.innerHTML = `
@@ -366,6 +358,15 @@ async function renderDetail(p) {
   const trendData = await apiFetch(`/api/player?id=${p.player_id}&season=2026`).catch(() => ({season_trend:[]}));
   const fullTrend = trendData.season_trend || [];
   const rangedTrend = fullTrend.filter(d => d.season >= yrFrom && d.season <= yrTo);
+
+  // Career peak stats — computed after fullTrend is available
+  const peakEntry = fullTrend.length ? fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b) : null;
+  const peakSpd = peakEntry?.sprint_speed;
+  const peakYr  = peakEntry?.season;
+  const curSpd  = fullTrend.find(d => d.season === curSeason)?.sprint_speed || p.sprint_speed;
+  const peakDrop = (peakSpd && curSpd) ? (curSpd - peakSpd).toFixed(1) : null;
+  const peakDropSign = peakDrop ? (parseFloat(peakDrop) >= 0 ? '+' : '') : '';
+  const peakDropColor = peakDrop ? (parseFloat(peakDrop) >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
 
   const sc = spClass(p.sprint_speed);
   const init = p.name.split(' ').map(n=>n[0]).join('').slice(0,2);
