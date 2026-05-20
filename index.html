@@ -215,7 +215,7 @@ canvas{width:100%;height:100%;}
       <div class="sh" data-sort="sprint_speed" style="text-align:right">FT/S <span class="sarr">↕</span></div>
       <div class="sh" data-sort="bolts" style="text-align:right">⚡</div>
       <div class="sh" data-sort="hp_to_1b" style="text-align:right">HP→1B</div>
-      <div class="sh" data-sort="percentile" style="text-align:right">PCT</div>
+      <div class="sh" data-sort="peak_drop" style="text-align:right">PEAK△</div>
       <div></div>
     </div>
     <div class="plist" id="plist">
@@ -329,7 +329,7 @@ function renderList() {
       <div class="scol ${sc}">${p.sprint_speed?.toFixed(1)||'—'}</div>
       <div class="pcol" style="color:var(--gold)">${p.bolts||'—'}</div>
       <div class="pcol">${p.hp_to_1b?.toFixed(2)||'—'}</div>
-      <div class="pcol">${p.percentile?Math.round(p.percentile)+'th':'—'}</div>
+      <div class="pcol" style="font-size:10px">${p.peak_drop!=null?(p.peak_drop>=0?'<span style="color:var(--green)">+'+p.peak_drop.toFixed(1)+'</span>':'<span style="color:var(--red)">'+p.peak_drop.toFixed(1)+'</span>'):'—'}</div>
       <div style="display:flex;justify-content:flex-end">
         <button class="acb ${inC?'added':''}" data-id="${p.player_id}">${inC?'✓':'+'}</button>
       </div>`;
@@ -358,6 +358,14 @@ async function renderDetail(p) {
   const trendData = await apiFetch(`/api/player?id=${p.player_id}&season=2026`).catch(() => ({season_trend:[]}));
   const fullTrend = trendData.season_trend || [];
   const rangedTrend = fullTrend.filter(d => d.season >= yrFrom && d.season <= yrTo);
+
+  // Store peak_drop on the player object so list can sort by it
+  if (fullTrend.length) {
+    const pk = fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b);
+    const cur = fullTrend.find(d => d.season === curSeason)?.sprint_speed || p.sprint_speed;
+    p.peak_drop = cur && pk.sprint_speed ? Math.round((cur - pk.sprint_speed) * 10) / 10 : null;
+    renderList(); // refresh list with updated peak_drop
+  }
 
   // Career peak stats — computed after fullTrend is available
   const peakEntry = fullTrend.length ? fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b) : null;
@@ -425,20 +433,18 @@ async function renderDetail(p) {
       </div>
     </div>
 
-    <div class="sgrid">
-      <div class="sc"><div class="slbl">Sprint Speed</div><div class="sval ${sc}">${p.sprint_speed?.toFixed(1)||'—'}</div><div class="sctx">ft / sec</div></div>
-      <div class="sc"><div class="slbl">vs Lg Avg</div><div class="sval" style="color:${parseFloat(diffAvg)>=0?'var(--green)':'var(--red)'}">${diffSign}${diffAvg}</div><div class="sctx">avg: ${lgAvg}</div></div>
+    <div class="sgrid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="sc"><div class="slbl">Sprint Speed</div><div class="sval ${sc}">${p.sprint_speed?.toFixed(1)||'—'}</div><div class="sctx">ft / sec · ${spTier(p.sprint_speed)}</div></div>
+      <div class="sc"><div class="slbl">vs Lg Avg</div><div class="sval" style="color:${parseFloat(diffAvg)>=0?'var(--green)':'var(--red)'}">${diffSign}${diffAvg}</div><div class="sctx">avg: ${lgAvg} ft/s</div></div>
+      <div class="sc"><div class="slbl">Career Peak</div><div class="sval ${spClass(peakSpd)}">${peakSpd?.toFixed(1)||'—'}</div><div class="sctx">${peakYr||'—'}</div></div>
+      <div class="sc"><div class="slbl">vs Peak</div><div class="sval" style="color:${peakDropColor}">${peakDropSign}${peakDrop||'—'}</div><div class="sctx">career gain/loss</div></div>
       <div class="sc"><div class="slbl">Comp Runs</div><div class="sval">${p.competitive_runs||'—'}</div><div class="sctx">counted</div></div>
-      <div class="sc"><div class="slbl">Bolts</div><div class="sval" style="color:var(--gold)">${p.bolts||'—'}</div><div class="sctx">max effort</div></div>
+      <div class="sc"><div class="slbl">Bolts ⚡</div><div class="sval" style="color:var(--gold)">${p.bolts||'—'}</div><div class="sctx">30+ ft/s sprints</div></div>
       <div class="sc"><div class="slbl">HP → 1B</div><div class="sval">${p.hp_to_1b||'—'}</div><div class="sctx">seconds</div></div>
+      <div class="sc"><div class="slbl">Seasons</div><div class="sval" style="color:var(--muted)">${fullTrend.length||'—'}</div><div class="sctx">tracked</div></div>
     </div>
 
-    ${peakEntry ? `
-    <div class="sgrid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="sc"><div class="slbl">Career Peak</div><div class="sval ${spClass(peakSpd)}">${peakSpd?.toFixed(1)||'—'}</div><div class="sctx">${peakYr||'—'}</div></div>
-      <div class="sc"><div class="slbl">Current vs Peak</div><div class="sval" style="color:${peakDropColor}">${peakDropSign}${peakDrop||'—'}</div><div class="sctx">ft/sec change</div></div>
-      <div class="sc"><div class="slbl">Seasons Tracked</div><div class="sval" style="color:var(--muted)">${fullTrend.length}</div><div class="sctx">2015–${curSeason}</div></div>
-    </div>` : ''}
+
 
     <div class="card">
       <div class="stitle">Percentile Rank — ${curSeason}</div>
