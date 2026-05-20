@@ -281,9 +281,26 @@ async function loadLeaderboard(season) {
     document.querySelector('#hdr-a b').textContent = lgAvg.toFixed(1);
     document.querySelector('#hdr-m b').textContent = lgMax.toFixed(1);
     applyFilters();
+    // Fetch peaks in background and merge into player objects
+    loadPeaks(season);
   } catch(e) {
     document.getElementById('plist').innerHTML = `<div class="errmsg" style="margin:16px">⚠ ${e.message}</div>`;
   }
+}
+
+async function loadPeaks(season) {
+  try {
+    const peaks = await apiFetch(`/api/peaks?season=${season}`);
+    allPlayers.forEach(p => {
+      const pk = peaks[p.player_id];
+      if (pk) {
+        p.peak_speed = pk.peak_speed;
+        p.peak_year  = pk.peak_year;
+        p.peak_drop  = pk.peak_drop;
+      }
+    });
+    renderList(); // re-render with peak data populated
+  } catch(e) { console.error('Peaks fetch failed:', e); }
 }
 
 // ── FILTERS ───────────────────────────────────────────────────────────────────
@@ -359,20 +376,13 @@ async function renderDetail(p) {
   const fullTrend = trendData.season_trend || [];
   const rangedTrend = fullTrend.filter(d => d.season >= yrFrom && d.season <= yrTo);
 
-  // Store peak_drop on the player object so list can sort by it
-  if (fullTrend.length) {
-    const pk = fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b);
-    const cur = fullTrend.find(d => d.season === curSeason)?.sprint_speed || p.sprint_speed;
-    p.peak_drop = cur && pk.sprint_speed ? Math.round((cur - pk.sprint_speed) * 10) / 10 : null;
-    renderList(); // refresh list with updated peak_drop
-  }
 
-  // Career peak stats — computed after fullTrend is available
-  const peakEntry = fullTrend.length ? fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b) : null;
-  const peakSpd = peakEntry?.sprint_speed;
-  const peakYr  = peakEntry?.season;
-  const curSpd  = fullTrend.find(d => d.season === curSeason)?.sprint_speed || p.sprint_speed;
-  const peakDrop = (peakSpd && curSpd) ? (curSpd - peakSpd).toFixed(1) : null;
+
+  // Career peak — use pre-loaded data from /api/peaks, fall back to trend
+  const trendPeak = fullTrend.length ? fullTrend.reduce((a,b) => a.sprint_speed > b.sprint_speed ? a : b) : null;
+  const peakSpd  = p.peak_speed || trendPeak?.sprint_speed;
+  const peakYr   = p.peak_year  || trendPeak?.season;
+  const peakDrop = p.peak_drop != null ? p.peak_drop.toFixed(1) : (peakSpd ? (p.sprint_speed - peakSpd).toFixed(1) : null);
   const peakDropSign = peakDrop ? (parseFloat(peakDrop) >= 0 ? '+' : '') : '';
   const peakDropColor = peakDrop ? (parseFloat(peakDrop) >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)';
 
